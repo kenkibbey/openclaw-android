@@ -24,7 +24,7 @@ else
     echo "Updating openclaw npm package... ($CURRENT_VER → $LATEST_VER)"
     echo "  (This may take several minutes depending on network speed)"
     if npm install -g openclaw@latest --no-fund --no-audit --ignore-scripts; then
-        echo -e "${GREEN}[OK]${NC}   openclaw package updated"
+        echo -e "${GREEN}[OK]${NC}   openclaw $LATEST_VER updated"
         OPENCLAW_UPDATED=true
     else
         echo -e "${YELLOW}[WARN]${NC} Package update failed (non-critical)"
@@ -37,7 +37,7 @@ bash "$SCRIPT_DIR/patches/openclaw-apply-patches.sh"
 if [ "$OPENCLAW_UPDATED" = true ]; then
     bash "$SCRIPT_DIR/patches/openclaw-build-sharp.sh" || true
 else
-    echo -e "${GREEN}[SKIP]${NC} openclaw unchanged — sharp rebuild not needed"
+    echo -e "${GREEN}[SKIP]${NC} openclaw $CURRENT_VER unchanged \u2014 sharp rebuild not needed"
 fi
 
 if command -v clawdhub &>/dev/null; then
@@ -48,7 +48,7 @@ if command -v clawdhub &>/dev/null; then
     elif [ -n "$CLAWDHUB_LATEST_VER" ]; then
         echo "Updating clawdhub... ($CLAWDHUB_CURRENT_VER → $CLAWDHUB_LATEST_VER)"
         if npm install -g clawdhub@latest --no-fund --no-audit; then
-            echo -e "${GREEN}[OK]${NC}   clawdhub updated"
+            echo -e "${GREEN}[OK]${NC}   clawdhub $CLAWDHUB_LATEST_VER updated"
         else
             echo -e "${YELLOW}[WARN]${NC} clawdhub update failed (non-critical)"
         fi
@@ -77,7 +77,8 @@ if [ -d "$CLAWHUB_DIR" ] && ! (cd "$CLAWHUB_DIR" && node -e "require('undici')" 
         echo -e "${YELLOW}[WARN]${NC} undici installation failed"
     fi
 else
-    echo -e "${GREEN}[OK]${NC}   undici already available"
+    UNDICI_VER=$(cd "$CLAWHUB_DIR" && node -e "console.log(require('undici/package.json').version)" 2>/dev/null || echo "")
+    echo -e "${GREEN}[OK]${NC}   undici ${UNDICI_VER:-available}"
 fi
 
 OLD_SKILLS_DIR="$HOME/skills"

@@ -238,7 +238,7 @@ else
             fi
             echo "  (This may take a few minutes for package download and binary processing)"
             if bash "$RELEASE_TMP/scripts/install-opencode.sh" $OPENCODE_FLAGS; then
-                echo -e "${GREEN}[OK]${NC}   OpenCode update complete"
+                echo -e "${GREEN}[OK]${NC}   OpenCode ${LATEST_OC_VER:-} updated"
             else
                 echo -e "${YELLOW}[WARN]${NC} OpenCode update failed (non-critical)"
             fi
@@ -279,7 +279,7 @@ update_ai_tool() {
         echo "Updating $label... ($current_ver -> $latest_ver)"
         echo "  (This may take a few minutes depending on network speed)"
         if npm install -g "$pkg@latest" --no-fund --no-audit --ignore-scripts; then
-            echo -e "${GREEN}[OK]${NC}   $label updated"
+            echo -e "${GREEN}[OK]${NC}   $label $latest_ver updated"
         else
             echo -e "${YELLOW}[WARN]${NC} $label update failed (non-critical)"
         fi
