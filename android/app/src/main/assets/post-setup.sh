@@ -359,6 +359,9 @@ else
     echo -e "  ${YELLOW}[WARN]${NC} clawdhub installation failed (non-critical)"
 fi
 
+# PyYAML (for .skill packaging)
+python -c "import yaml" 2>/dev/null || pip install pyyaml -q || true
+
 # Run openclaw update (builds native modules like sharp)
 echo "  Running: openclaw update (this may take 5-10 minutes)..."
 openclaw update || true
