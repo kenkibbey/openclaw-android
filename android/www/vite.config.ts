@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   build: {
+    target: 'chrome67',
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
