@@ -405,7 +405,7 @@ else
 fi
 
 # PyYAML (for .skill packaging)
-python -c "import yaml" 2>/dev/null || pip install pyyaml -q || true
+command -v python &>/dev/null && { python -c "import yaml" 2>/dev/null || pip install pyyaml -q || true; }
 
 # Run openclaw update (builds native modules like sharp)
 echo "  Running: openclaw update (this may take 5-10 minutes)..."
@@ -468,7 +468,7 @@ BASHRC
 echo -e "  ${GREEN}✓${NC} ~/.bashrc configured"
 
 # oa CLI (enables oa --update, oa --backup, etc.)
-if curl -fsSL "https://raw.githubusercontent.com/AidanPark/openclaw-android/main/oa.sh" \ 
+if curl -fsSL "https://raw.githubusercontent.com/AidanPark/openclaw-android/main/oa.sh" \
         -o "$PREFIX/bin/oa" 2>/dev/null; then
     chmod +x "$PREFIX/bin/oa"
     echo -e "  ${GREEN}✓${NC} oa CLI installed"
