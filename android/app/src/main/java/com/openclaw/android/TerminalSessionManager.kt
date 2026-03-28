@@ -1,6 +1,6 @@
 package com.openclaw.android
 
-import android.util.Log
+
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 
@@ -66,7 +66,7 @@ class TerminalSessionManager(
         )
         activity.runOnUiThread { onSessionsChanged?.invoke() }
 
-        Log.i(TAG, "Created session ${session.mHandle} (total: ${sessions.size})")
+        AppLogger.i(TAG, "Created session ${session.mHandle} (total: ${sessions.size})")
         return session
     }
 
@@ -129,7 +129,7 @@ class TerminalSessionManager(
         }
 
         activity.runOnUiThread { onSessionsChanged?.invoke() }
-        Log.i(TAG, "Closed session $handleId (remaining: ${sessions.size})")
+        AppLogger.i(TAG, "Closed session $handleId (remaining: ${sessions.size})")
     }
 
     /**

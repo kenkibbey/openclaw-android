@@ -9,7 +9,7 @@ config:
   MD041: false
   MD060: false
   MD024:
-    allow_different_nesting: true
+    siblings_only: true
 
 ignores:
   - "build/**"

@@ -14,6 +14,10 @@ import java.net.URL
  */
 class UrlResolver(private val context: Context) {
 
+    companion object {
+        private const val CONFIG_FETCH_TIMEOUT_MS = 5_000L
+    }
+
     private val configFile = File(
         context.filesDir, "usr/share/openclaw-app/config.json"
     )
@@ -41,7 +45,7 @@ class UrlResolver(private val context: Context) {
 
         // 2. Remote fetch (5s timeout)
         return try {
-            withTimeout(5_000) {
+            withTimeout(CONFIG_FETCH_TIMEOUT_MS) {
                 val json = URL(BuildConfig.CONFIG_URL).readText()
                 configFile.parentFile?.mkdirs()
                 configFile.writeText(json)

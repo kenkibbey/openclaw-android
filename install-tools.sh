@@ -117,18 +117,18 @@ INSTALL_GEMINI_CLI=false
 INSTALL_CODEX_CLI=false
 INSTALL_CHROMIUM=false
 
-[ "${TOOL_STATUS[tmux]}" = "not_installed" ] && ask_yn "  Install tmux (terminal multiplexer)?" && INSTALL_TMUX=true || true
-[ "${TOOL_STATUS[ttyd]}" = "not_installed" ] && ask_yn "  Install ttyd (web terminal)?" && INSTALL_TTYD=true || true
-[ "${TOOL_STATUS[dufs]}" = "not_installed" ] && ask_yn "  Install dufs (file server)?" && INSTALL_DUFS=true || true
-[ "${TOOL_STATUS[android-tools]}" = "not_installed" ] && ask_yn "  Install android-tools (adb)?" && INSTALL_ANDROID_TOOLS=true || true
-[ "${TOOL_STATUS[Chromium]}" = "not_installed" ] && ask_yn "  Install Chromium (browser automation, ~400MB)?" && INSTALL_CHROMIUM=true || true
-[ "${TOOL_STATUS[code-server]}" = "not_installed" ] && ask_yn "  Install code-server (browser IDE)?" && INSTALL_CODE_SERVER=true || true
+if [ "${TOOL_STATUS[tmux]}" = "not_installed" ] && ask_yn "  Install tmux (terminal multiplexer)?"; then INSTALL_TMUX=true; fi
+if [ "${TOOL_STATUS[ttyd]}" = "not_installed" ] && ask_yn "  Install ttyd (web terminal)?"; then INSTALL_TTYD=true; fi
+if [ "${TOOL_STATUS[dufs]}" = "not_installed" ] && ask_yn "  Install dufs (file server)?"; then INSTALL_DUFS=true; fi
+if [ "${TOOL_STATUS[android-tools]}" = "not_installed" ] && ask_yn "  Install android-tools (adb)?"; then INSTALL_ANDROID_TOOLS=true; fi
+if [ "${TOOL_STATUS[Chromium]}" = "not_installed" ] && ask_yn "  Install Chromium (browser automation, ~400MB)?"; then INSTALL_CHROMIUM=true; fi
+if [ "${TOOL_STATUS[code-server]}" = "not_installed" ] && ask_yn "  Install code-server (browser IDE)?"; then INSTALL_CODE_SERVER=true; fi
 if [ "$IS_GLIBC" = true ] && [ "${TOOL_STATUS[OpenCode]}" = "not_installed" ]; then
-    ask_yn "  Install OpenCode (AI coding assistant)?" && INSTALL_OPENCODE=true || true
+    if ask_yn "  Install OpenCode (AI coding assistant)?"; then INSTALL_OPENCODE=true; fi
 fi
-[ "${TOOL_STATUS[Claude Code]}" = "not_installed" ] && ask_yn "  Install Claude Code CLI?" && INSTALL_CLAUDE_CODE=true || true
-[ "${TOOL_STATUS[Gemini CLI]}" = "not_installed" ] && ask_yn "  Install Gemini CLI?" && INSTALL_GEMINI_CLI=true || true
-[ "${TOOL_STATUS[Codex CLI]}" = "not_installed" ] && ask_yn "  Install Codex CLI?" && INSTALL_CODEX_CLI=true || true
+if [ "${TOOL_STATUS[Claude Code]}" = "not_installed" ] && ask_yn "  Install Claude Code CLI?"; then INSTALL_CLAUDE_CODE=true; fi
+if [ "${TOOL_STATUS[Gemini CLI]}" = "not_installed" ] && ask_yn "  Install Gemini CLI?"; then INSTALL_GEMINI_CLI=true; fi
+if [ "${TOOL_STATUS[Codex CLI]}" = "not_installed" ] && ask_yn "  Install Codex CLI?"; then INSTALL_CODEX_CLI=true; fi
 
 # --- Check if anything selected ---
 ANYTHING_SELECTED=false
@@ -176,10 +176,10 @@ echo ""
 echo -e "${BOLD}Installing selected tools...${NC}"
 echo ""
 
-[ "$INSTALL_TMUX" = true ] && echo "Installing tmux..." && pkg install -y tmux && echo -e "${GREEN}[OK]${NC}   tmux installed" || true
-[ "$INSTALL_TTYD" = true ] && echo "Installing ttyd..." && pkg install -y ttyd && echo -e "${GREEN}[OK]${NC}   ttyd installed" || true
-[ "$INSTALL_DUFS" = true ] && echo "Installing dufs..." && pkg install -y dufs && echo -e "${GREEN}[OK]${NC}   dufs installed" || true
-[ "$INSTALL_ANDROID_TOOLS" = true ] && echo "Installing android-tools..." && pkg install -y android-tools && echo -e "${GREEN}[OK]${NC}   android-tools installed" || true
+if [ "$INSTALL_TMUX" = true ]; then echo "Installing tmux..."; if pkg install -y tmux; then echo -e "${GREEN}[OK]${NC}   tmux installed"; fi; fi
+if [ "$INSTALL_TTYD" = true ]; then echo "Installing ttyd..."; if pkg install -y ttyd; then echo -e "${GREEN}[OK]${NC}   ttyd installed"; fi; fi
+if [ "$INSTALL_DUFS" = true ]; then echo "Installing dufs..."; if pkg install -y dufs; then echo -e "${GREEN}[OK]${NC}   dufs installed"; fi; fi
+if [ "$INSTALL_ANDROID_TOOLS" = true ]; then echo "Installing android-tools..."; if pkg install -y android-tools; then echo -e "${GREEN}[OK]${NC}   android-tools installed"; fi; fi
 
 if [ "$INSTALL_CODE_SERVER" = true ]; then
     mkdir -p "$PROJECT_DIR/patches"
@@ -207,9 +207,9 @@ if [ "$INSTALL_CHROMIUM" = true ]; then
     fi
 fi
 
-[ "$INSTALL_CLAUDE_CODE" = true ] && echo "Installing Claude Code..." && npm install -g @anthropic-ai/claude-code && echo -e "${GREEN}[OK]${NC}   Claude Code installed" || true
-[ "$INSTALL_GEMINI_CLI" = true ] && echo "Installing Gemini CLI..." && npm install -g @google/gemini-cli && echo -e "${GREEN}[OK]${NC}   Gemini CLI installed" || true
-[ "$INSTALL_CODEX_CLI" = true ] && echo "Installing Codex CLI..." && npm install -g @openai/codex && echo -e "${GREEN}[OK]${NC}   Codex CLI installed" || true
+if [ "$INSTALL_CLAUDE_CODE" = true ]; then echo "Installing Claude Code..."; if npm install -g @anthropic-ai/claude-code; then echo -e "${GREEN}[OK]${NC}   Claude Code installed"; fi; fi
+if [ "$INSTALL_GEMINI_CLI" = true ]; then echo "Installing Gemini CLI..."; if npm install -g @google/gemini-cli; then echo -e "${GREEN}[OK]${NC}   Gemini CLI installed"; fi; fi
+if [ "$INSTALL_CODEX_CLI" = true ]; then echo "Installing Codex CLI..."; if npm install -g @openai/codex; then echo -e "${GREEN}[OK]${NC}   Codex CLI installed"; fi; fi
 
 echo ""
 echo -e "${GREEN}${BOLD}  Installation Complete!${NC}"

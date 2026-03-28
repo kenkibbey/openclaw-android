@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
-import android.util.Log
+
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -32,6 +32,20 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val DEFAULT_TEXT_SIZE = 32
+        private const val MIN_TEXT_SIZE = 8
+        private const val MAX_TEXT_SIZE = 32
+        private const val KEYBOARD_SHOW_DELAY_MS = 200L
+        private const val TAB_NAME_TEXT_SIZE = 12f
+        private const val TAB_CLOSE_TEXT_SIZE = 14f
+        private const val TAB_ADD_TEXT_SIZE = 18f
+        private const val TAB_MARGIN_DP = 2
+        private const val TAB_HPAD_DP = 10
+        private const val TAB_VPAD_DP = 4
+        private const val TAB_CLOSE_PAD_DP = 6
+        private const val TAB_ADD_PAD_DP = 12
+        private const val INDICATOR_HEIGHT_DP = 2
+        private const val INPUT_MODE_TYPE_NULL = 1
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -41,7 +55,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var eventBridge: EventBridge
     private lateinit var jsBridge: JsBridge
 
-    private var currentTextSize = 32
+    private var currentTextSize = DEFAULT_TEXT_SIZE
     private var ctrlDown = false
     private var altDown = false
     private val terminalSessionClient = OpenClawSessionClient()
@@ -64,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, OpenClawService::class.java))
 
         val isInstalled = bootstrapManager.isInstalled()
-        Log.i(TAG, "Bootstrap installed: $isInstalled, needsPostSetup: ${bootstrapManager.needsPostSetup()}")
+        AppLogger.i(TAG, "Bootstrap installed: $isInstalled, needsPostSetup: ${bootstrapManager.needsPostSetup()}")
 
         // Sync www assets and check for APK version upgrade
         if (isInstalled) {
@@ -76,7 +90,7 @@ class MainActivity : AppCompatActivity() {
             // Ensure oa CLI is installed (network, run in background)
             Thread { bootstrapManager.installOaCli() }.start()
             if (currentVersionCode > savedVersionCode) {
-                Log.i(TAG, "APK version upgrade detected: $savedVersionCode -> $currentVersionCode")
+                AppLogger.i(TAG, "APK version upgrade detected: $savedVersionCode -> $currentVersionCode")
                 bootstrapManager.applyScriptUpdate()
                 prefs.edit().putInt("versionCode", currentVersionCode).apply()
             }
@@ -85,7 +99,7 @@ class MainActivity : AppCompatActivity() {
             showTerminal()
             val session = sessionManager.createSession()
             if (bootstrapManager.needsPostSetup()) {
-                Log.i(TAG, "Running post-setup script in terminal")
+                AppLogger.i(TAG, "Running post-setup script in terminal")
                 val script = bootstrapManager.postSetupScript.absolutePath
                 binding.terminalView.post {
                     session.write("bash $script\n")
@@ -93,7 +107,7 @@ class MainActivity : AppCompatActivity() {
             } else if (intent?.getBooleanExtra("from_boot", false) == true) {
                 val platformFile = java.io.File(bootstrapManager.homeDir, ".openclaw-android/.platform")
                 val platformId = if (platformFile.exists()) platformFile.readText().trim() else "openclaw"
-                Log.i(TAG, "Boot launch \u2014 auto-starting $platformId gateway")
+                AppLogger.i(TAG, "Boot launch \u2014 auto-starting $platformId gateway")
                 binding.terminalView.post {
                     session.write("$platformId gateway\n")
                 }
@@ -130,14 +144,14 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Log.i(TAG, "WebView page loaded: $url")
+                    AppLogger.i(TAG, "WebView page loaded: $url")
                     // Page loaded successfully
                 }
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
                     consoleMessage?.let {
-                        Log.d("WebViewJS", "${it.sourceId()}:${it.lineNumber()} ${it.message()}")
+                        AppLogger.d("WebViewJS", "${it.sourceId()}:${it.lineNumber()} ${it.message()}")
                     }
                     return true
                 }
@@ -151,7 +165,7 @@ class MainActivity : AppCompatActivity() {
             // Load bundled fallback setup page from assets
             "file:///android_asset/www/index.html"
         }
-        Log.i(TAG, "Loading WebView URL: $url")
+        AppLogger.i(TAG, "Loading WebView URL: $url")
         binding.webView.loadUrl(url)
     }
 
@@ -171,7 +185,7 @@ class MainActivity : AppCompatActivity() {
             binding.terminalView.postDelayed({
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(binding.terminalView, InputMethodManager.SHOW_IMPLICIT)
-            }, 200)
+            }, KEYBOARD_SHOW_DELAY_MS)
         }
     }
 
@@ -296,113 +310,128 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
 
         for (info in sessions) {
-            val id = info["id"] as String
-            val name = info["name"] as String
-            val active = info["active"] as Boolean
-            val finished = info["finished"] as Boolean
-
-            // Tab wrapper (vertical: content row + accent indicator)
-            val tabWrapper = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.MATCH_PARENT
-                ).apply {
-                    marginEnd = (2 * density).toInt()
-                }
-                val bgColor = if (active) R.color.tabActiveBackground else R.color.tabInactiveBackground
-                setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
-                isFocusable = false
-                isFocusableInTouchMode = false
-            }
-
-            // Tab content row (horizontal: name + close)
-            val tabContent = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                val hPad = (10 * density).toInt()
-                val vPad = (4 * density).toInt()
-                setPadding(hPad, vPad, (6 * density).toInt(), vPad)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    0, 1f
-                )
-                isFocusable = false
-                isFocusableInTouchMode = false
-            }
-
-            // Session name
-            val nameView = TextView(this).apply {
-                text = name
-                textSize = 12f
-                val textColor = when {
-                    finished -> R.color.tabTextFinished
-                    active -> R.color.tabTextPrimary
-                    else -> R.color.tabTextSecondary
-                }
-                setTextColor(ContextCompat.getColor(this@MainActivity, textColor))
-                if (finished) setTypeface(typeface, Typeface.ITALIC)
-                isSingleLine = true
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            // Close button
-            val closeView = TextView(this).apply {
-                text = "\u00D7"
-                textSize = 14f
-                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.tabTextSecondary))
-                val pad = (6 * density).toInt()
-                setPadding(pad, 0, 0, 0)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                isFocusable = false
-                isFocusableInTouchMode = false
-                setOnClickListener { closeSessionFromTab(id) }
-            }
-
-            tabContent.addView(nameView)
-            tabContent.addView(closeView)
-
-            // Accent indicator (2dp bottom line)
-            val indicator = View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    (2 * density).toInt()
-                )
-                val color = if (active) R.color.tabAccent else android.R.color.transparent
-                setBackgroundColor(ContextCompat.getColor(this@MainActivity, color))
-            }
-
-            tabWrapper.addView(tabContent)
-            tabWrapper.addView(indicator)
-
-            // Tab click → switch session
-            tabWrapper.setOnClickListener {
-                sessionManager.switchSession(id)
-                binding.terminalView.requestFocus()
-            }
-
+            val tabWrapper = createSessionTab(info, density)
             tabsLayout.addView(tabWrapper)
-
-            // Scroll to active tab
-            if (active) {
+            if (info["active"] as Boolean) {
                 binding.sessionTabBar.post {
                     binding.sessionTabBar.smoothScrollTo(tabWrapper.left, 0)
                 }
             }
         }
 
-        // "+" button to create new session
-        val addButton = TextView(this).apply {
-            text = "+"
-            textSize = 18f
+        tabsLayout.addView(createAddButton(density))
+    }
+
+    private fun createSessionTab(
+        info: Map<String, Any>,
+        density: Float
+    ): LinearLayout {
+        val id = info["id"] as String
+        val name = info["name"] as String
+        val active = info["active"] as Boolean
+        val finished = info["finished"] as Boolean
+
+        val tabWrapper = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            ).apply {
+                marginEnd = (TAB_MARGIN_DP * density).toInt()
+            }
+            val bgColor = if (active) R.color.tabActiveBackground
+                else R.color.tabInactiveBackground
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
+            isFocusable = false
+            isFocusableInTouchMode = false
+        }
+
+        val tabContent = createTabContent(name, active, finished, id, density)
+        val indicator = createTabIndicator(active, density)
+
+        tabWrapper.addView(tabContent)
+        tabWrapper.addView(indicator)
+        tabWrapper.setOnClickListener {
+            sessionManager.switchSession(id)
+            binding.terminalView.requestFocus()
+        }
+
+        return tabWrapper
+    }
+
+    private fun createTabContent(
+        name: String,
+        active: Boolean,
+        finished: Boolean,
+        id: String,
+        density: Float
+    ): LinearLayout {
+        val tabContent = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val hPad = (TAB_HPAD_DP * density).toInt()
+            val vPad = (TAB_VPAD_DP * density).toInt()
+            setPadding(hPad, vPad, (TAB_CLOSE_PAD_DP * density).toInt(), vPad)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, 0, 1f
+            )
+            isFocusable = false
+            isFocusableInTouchMode = false
+        }
+
+        val nameView = TextView(this).apply {
+            text = name
+            textSize = TAB_NAME_TEXT_SIZE
+            val textColor = when {
+                finished -> R.color.tabTextFinished
+                active -> R.color.tabTextPrimary
+                else -> R.color.tabTextSecondary
+            }
+            setTextColor(ContextCompat.getColor(this@MainActivity, textColor))
+            if (finished) setTypeface(typeface, Typeface.ITALIC)
+            isSingleLine = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val closeView = TextView(this).apply {
+            text = "\u00D7"
+            textSize = TAB_CLOSE_TEXT_SIZE
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.tabTextSecondary))
-            val pad = (12 * density).toInt()
+            setPadding((TAB_CLOSE_PAD_DP * density).toInt(), 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isFocusable = false
+            isFocusableInTouchMode = false
+            setOnClickListener { closeSessionFromTab(id) }
+        }
+
+        tabContent.addView(nameView)
+        tabContent.addView(closeView)
+        return tabContent
+    }
+
+    private fun createTabIndicator(active: Boolean, density: Float): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (INDICATOR_HEIGHT_DP * density).toInt()
+            )
+            val color = if (active) R.color.tabAccent else android.R.color.transparent
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, color))
+        }
+    }
+
+    private fun createAddButton(density: Float): TextView {
+        return TextView(this).apply {
+            text = "+"
+            textSize = TAB_ADD_TEXT_SIZE
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.tabTextSecondary))
+            val pad = (TAB_ADD_PAD_DP * density).toInt()
             setPadding(pad, 0, pad, 0)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
@@ -416,7 +445,6 @@ class MainActivity : AppCompatActivity() {
                 binding.terminalView.requestFocus()
             }
         }
-        tabsLayout.addView(addButton)
     }
 
     private fun closeSessionFromTab(handleId: String) {
@@ -457,33 +485,34 @@ class MainActivity : AppCompatActivity() {
             session?.write(text.toString())
         }
 
-        override fun onBell(session: TerminalSession) {}
-        override fun onColorsChanged(session: TerminalSession) {}
-        override fun onTerminalCursorStateChange(state: Boolean) {}
-        override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
+        override fun onBell(session: TerminalSession) = Unit
+        override fun onColorsChanged(session: TerminalSession) = Unit
+        override fun onTerminalCursorStateChange(state: Boolean) = Unit
+        override fun setTerminalShellPid(session: TerminalSession, pid: Int) = Unit
         override fun getTerminalCursorStyle(): Int = 0
 
-        override fun logError(tag: String, message: String) { Log.e(tag, message) }
-        override fun logWarn(tag: String, message: String) { Log.w(tag, message) }
-        override fun logInfo(tag: String, message: String) { Log.i(tag, message) }
-        override fun logDebug(tag: String, message: String) { Log.d(tag, message) }
-        override fun logVerbose(tag: String, message: String) { Log.v(tag, message) }
+        override fun logError(tag: String, message: String) { AppLogger.e(tag, message) }
+        override fun logWarn(tag: String, message: String) { AppLogger.w(tag, message) }
+        override fun logInfo(tag: String, message: String) { AppLogger.i(tag, message) }
+        override fun logDebug(tag: String, message: String) { AppLogger.d(tag, message) }
+        override fun logVerbose(tag: String, message: String) { AppLogger.v(tag, message) }
         override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {
-            Log.e(tag, message, e)
+            AppLogger.e(tag, message, e)
         }
         override fun logStackTrace(tag: String, e: Exception) {
-            Log.e(tag, "Exception", e)
+            AppLogger.e(tag, "Exception", e)
         }
     }
 
     // --- Terminal view callbacks ---
 
+    @Suppress("TooManyFunctions") // Interface implementation requires all methods
     private inner class OpenClawViewClient : TerminalViewClient {
 
         override fun onScale(scale: Float): Float {
             val currentSize = currentTextSize
             val newSize = if (scale > 1f) currentSize + 1 else currentSize - 1
-            val clamped = newSize.coerceIn(8, 32)
+            val clamped = newSize.coerceIn(MIN_TEXT_SIZE, MAX_TEXT_SIZE)
             currentTextSize = clamped
             binding.terminalView.setTextSize(clamped)
             return scale
@@ -496,12 +525,12 @@ class MainActivity : AppCompatActivity() {
         }
         override fun shouldBackButtonBeMappedToEscape(): Boolean = false
         override fun shouldEnforceCharBasedInput(): Boolean = true
-        override fun getInputMode(): Int = 1 // TYPE_NULL — strict terminal input mode
+        override fun getInputMode(): Int = INPUT_MODE_TYPE_NULL
         override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
         override fun isTerminalViewSelected(): Boolean =
             binding.terminalContainer.visibility == View.VISIBLE
 
-        override fun copyModeChanged(copyMode: Boolean) {}
+        override fun copyModeChanged(copyMode: Boolean) = Unit
 
         override fun onKeyDown(keyCode: Int, e: KeyEvent, session: TerminalSession): Boolean =
             false
@@ -533,18 +562,18 @@ class MainActivity : AppCompatActivity() {
             session: TerminalSession
         ): Boolean = false
 
-        override fun onEmulatorSet() {}
+        override fun onEmulatorSet() = Unit
 
-        override fun logError(tag: String, message: String) { Log.e(tag, message) }
-        override fun logWarn(tag: String, message: String) { Log.w(tag, message) }
-        override fun logInfo(tag: String, message: String) { Log.i(tag, message) }
-        override fun logDebug(tag: String, message: String) { Log.d(tag, message) }
-        override fun logVerbose(tag: String, message: String) { Log.v(tag, message) }
+        override fun logError(tag: String, message: String) { AppLogger.e(tag, message) }
+        override fun logWarn(tag: String, message: String) { AppLogger.w(tag, message) }
+        override fun logInfo(tag: String, message: String) { AppLogger.i(tag, message) }
+        override fun logDebug(tag: String, message: String) { AppLogger.d(tag, message) }
+        override fun logVerbose(tag: String, message: String) { AppLogger.v(tag, message) }
         override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {
-            Log.e(tag, message, e)
+            AppLogger.e(tag, message, e)
         }
         override fun logStackTrace(tag: String, e: Exception) {
-            Log.e(tag, "Exception", e)
+            AppLogger.e(tag, "Exception", e)
         }
     }
 }

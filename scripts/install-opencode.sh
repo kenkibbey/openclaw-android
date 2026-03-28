@@ -169,7 +169,7 @@ OPENCODE_BIN=""
 for pattern in \
     "$HOME/.bun/install/cache/opencode-linux-arm64@*/bin/opencode" \
     "$HOME/.bun/install/global/node_modules/opencode-linux-arm64/bin/opencode"; do
-    # Use ls to expand glob safely
+    # shellcheck disable=SC2012,SC2086
     FOUND=$(ls $pattern 2>/dev/null | sort -V | tail -1 || true)
     if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
         OPENCODE_BIN="$FOUND"

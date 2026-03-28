@@ -21,7 +21,7 @@ A previous gateway process was terminated abnormally, leaving behind a lock file
 
 ### Solution
 
-**Step 1: Find and kill remaining processes**
+#### Step 1: Find and kill remaining processes
 
 ```bash
 ps aux | grep -E "node|openclaw" | grep -v grep
@@ -33,13 +33,13 @@ If processes are listed, note the PID and kill them:
 kill -9 <PID>
 ```
 
-**Step 2: Remove lock files**
+#### Step 2: Remove lock files
 
 ```bash
 rm -rf $PREFIX/tmp/openclaw-*
 ```
 
-**Step 3: Restart the gateway**
+#### Step 3: Restart the gateway
 
 ```bash
 openclaw gateway

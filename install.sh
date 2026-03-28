@@ -58,10 +58,10 @@ bash "$SCRIPT_DIR/scripts/install-infra-deps.sh"
 bash "$SCRIPT_DIR/scripts/setup-paths.sh"
 
 step 5 "Platform Runtime Dependencies (L2)"
-[ "${PLATFORM_NEEDS_GLIBC:-false}" = true ] && bash "$SCRIPT_DIR/scripts/install-glibc.sh" || true
-[ "${PLATFORM_NEEDS_NODEJS:-false}" = true ] && bash "$SCRIPT_DIR/scripts/install-nodejs.sh" || true
-[ "${PLATFORM_NEEDS_BUILD_TOOLS:-false}" = true ] && bash "$SCRIPT_DIR/scripts/install-build-tools.sh" || true
-[ "${PLATFORM_NEEDS_PROOT:-false}" = true ] && pkg install -y proot || true
+if [ "${PLATFORM_NEEDS_GLIBC:-false}" = true ]; then bash "$SCRIPT_DIR/scripts/install-glibc.sh"; fi
+if [ "${PLATFORM_NEEDS_NODEJS:-false}" = true ]; then bash "$SCRIPT_DIR/scripts/install-nodejs.sh"; fi
+if [ "${PLATFORM_NEEDS_BUILD_TOOLS:-false}" = true ]; then bash "$SCRIPT_DIR/scripts/install-build-tools.sh"; fi
+if [ "${PLATFORM_NEEDS_PROOT:-false}" = true ]; then pkg install -y proot; fi
 
 # Source environment for current session (needed by platform install)
 GLIBC_NODE_DIR="$PROJECT_DIR/node"
@@ -104,20 +104,20 @@ rm -rf "$PROJECT_DIR/platforms/$SELECTED_PLATFORM"
 cp -R "$SCRIPT_DIR/platforms/$SELECTED_PLATFORM" "$PROJECT_DIR/platforms/$SELECTED_PLATFORM"
 
 step 7 "Install Optional Tools (L3)"
-[ "$INSTALL_TMUX" = true ] && pkg install -y tmux || true
-[ "$INSTALL_TTYD" = true ] && pkg install -y ttyd || true
-[ "$INSTALL_DUFS" = true ] && pkg install -y dufs || true
-[ "$INSTALL_ANDROID_TOOLS" = true ] && pkg install -y android-tools || true
+if [ "$INSTALL_TMUX" = true ]; then pkg install -y tmux; fi
+if [ "$INSTALL_TTYD" = true ]; then pkg install -y ttyd; fi
+if [ "$INSTALL_DUFS" = true ]; then pkg install -y dufs; fi
+if [ "$INSTALL_ANDROID_TOOLS" = true ]; then pkg install -y android-tools; fi
 
-[ "$INSTALL_CHROMIUM" = true ] && bash "$SCRIPT_DIR/scripts/install-chromium.sh" install || true
+if [ "$INSTALL_CHROMIUM" = true ]; then bash "$SCRIPT_DIR/scripts/install-chromium.sh" install; fi
 
-[ "$INSTALL_CODE_SERVER" = true ] && mkdir -p "$PROJECT_DIR/patches" && cp "$SCRIPT_DIR/patches/argon2-stub.js" "$PROJECT_DIR/patches/argon2-stub.js" && bash "$SCRIPT_DIR/scripts/install-code-server.sh" install || true
+if [ "$INSTALL_CODE_SERVER" = true ]; then mkdir -p "$PROJECT_DIR/patches" && cp "$SCRIPT_DIR/patches/argon2-stub.js" "$PROJECT_DIR/patches/argon2-stub.js" && bash "$SCRIPT_DIR/scripts/install-code-server.sh" install; fi
 
-[ "$INSTALL_OPENCODE" = true ] && bash "$SCRIPT_DIR/scripts/install-opencode.sh" install || true
+if [ "$INSTALL_OPENCODE" = true ]; then bash "$SCRIPT_DIR/scripts/install-opencode.sh" install; fi
 
-[ "$INSTALL_CLAUDE_CODE" = true ] && npm install -g @anthropic-ai/claude-code || true
-[ "$INSTALL_GEMINI_CLI" = true ] && npm install -g @google/gemini-cli || true
-[ "$INSTALL_CODEX_CLI" = true ] && npm install -g @openai/codex || true
+if [ "$INSTALL_CLAUDE_CODE" = true ]; then npm install -g @anthropic-ai/claude-code; fi
+if [ "$INSTALL_GEMINI_CLI" = true ]; then npm install -g @google/gemini-cli; fi
+if [ "$INSTALL_CODEX_CLI" = true ]; then npm install -g @openai/codex; fi
 
 step 8 "Verification"
 bash "$SCRIPT_DIR/tests/verify-install.sh"

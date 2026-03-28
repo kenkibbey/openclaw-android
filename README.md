@@ -54,7 +54,7 @@ The standard approach to running OpenClaw on Android requires installing proot-d
 | Performance | Slower (proot layer) | Native speed |
 | Setup steps | Install distro, configure Linux, install Node.js, fix paths... | Run one command |
 
-## <img src="docs/images/claw-icon.svg" width="28"> Claw App
+## <img src="docs/images/claw-icon.svg" width="28" alt="Claw icon"> Claw App
 
 A standalone Android app is also available. It bundles a terminal emulator and a WebView-based UI into a single APK — no Termux required.
 
@@ -63,7 +63,6 @@ A standalone Android app is also available. It bundles a terminal emulator and a
 - Works independently of Termux — installing the app does not affect an existing Termux + `oa` setup
 
 Download the APK from the [Releases](https://github.com/AidanPark/openclaw-android/releases) page.
-
 
 ## Requirements
 
@@ -112,7 +111,6 @@ pkg update -y && pkg install -y curl
 ```
 
 > You may be asked to choose a mirror on first run. Pick any — a geographically closer mirror will be faster.
-
 
 ### Step 4: Install OpenClaw
 
@@ -192,7 +190,6 @@ After installation, the `oa` command is available for managing your installation
 | `oa --version` | Show version |
 | `oa --help` | Show available options |
 
-
 ## Update
 
 ```bash
@@ -214,7 +211,6 @@ Already up-to-date components are skipped. Components you haven't installed are 
 > curl -sL myopenclawhub.com/update | bash && source ~/.bashrc
 > ```
 
-
 ## Backup & Restore
 
 OpenClaw's built-in backup command (`openclaw backup create`) often fails on Android because it relies on hardlinks, which are blocked in Android's app-private storage. The `oa --backup` command works around this by using `tar` directly while maintaining full compatibility with the OpenClaw backup specification.
@@ -230,6 +226,7 @@ To restore from a backup:
 oa --restore
 ```
 This command lists all available backups in the default backup directory. Simply select the number of the backup you wish to restore. The tool automatically detects the platform from the backup manifest and handles the restoration to `~/.openclaw/`. Note that this will overwrite existing data, so a confirmation is required.
+
 ## Troubleshooting
 
 See the [Troubleshooting Guide](docs/troubleshooting.md) for detailed solutions.

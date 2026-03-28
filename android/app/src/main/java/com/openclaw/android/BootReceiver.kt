@@ -3,7 +3,6 @@ package com.openclaw.android
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 
 /**
  * Starts MainActivity on device boot so terminal sessions
@@ -17,7 +16,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.i(TAG, "Boot completed — launching OpenClaw")
+            AppLogger.i(TAG, "Boot completed — launching OpenClaw")
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 putExtra("from_boot", true)

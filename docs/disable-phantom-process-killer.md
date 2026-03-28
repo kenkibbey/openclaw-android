@@ -93,7 +93,7 @@ pkg install -y android-tools
 1. In **Wireless debugging** settings, tap **Pair device with pairing code**
 2. A dialog will show the **Wi-Fi pairing code** and **IP address & Port**
 
-<img src="images/signal9/05-pairing-code-dialog.png" width="300" alt="Pairing code dialog">
+   <img src="images/signal9/05-pairing-code-dialog.png" width="300" alt="Pairing code dialog">
 
 3. In Termux, run the pairing command using the port and code shown on screen:
 

@@ -97,7 +97,7 @@ install_pacman_pkg() {
     local filename="$1"
     local target="$2"  # e.g., $PREFIX/glibc
     local name
-    name=$(echo "$filename" | sed 's/-[0-9].*//')
+    name=${filename%%-[0-9]*}
     local url="${PACMAN_PKG_REPO}/${filename}"
     local pkg_file="${PKG_DIR}/${filename}"
 
@@ -254,6 +254,7 @@ else
     # - Moves leading --options to NODE_OPTIONS (ld.so misparses them)
     cat > "$NODE_DIR/bin/node" << WRAPPER
 #!${PREFIX}/bin/bash
+[ -n "\$LD_PRELOAD" ] && export _OA_ORIG_LD_PRELOAD="\$LD_PRELOAD"
 unset LD_PRELOAD
 _OA_COMPAT="\$HOME/.openclaw-android/patches/glibc-compat.js"
 if [ -f "\$_OA_COMPAT" ]; then
@@ -479,11 +480,13 @@ fi
 # ─── [7/7] Optional Tools ──────────────────
 TOOL_CONF="$OCA_DIR/tool-selections.conf"
 if [ -f "$TOOL_CONF" ]; then
+    # shellcheck source=/dev/null
     source "$TOOL_CONF"
 
     HAS_TOOLS=false
     for var in INSTALL_TMUX INSTALL_TTYD INSTALL_DUFS INSTALL_CODE_SERVER INSTALL_CLAUDE_CODE INSTALL_GEMINI_CLI INSTALL_CODEX_CLI; do
         eval "val=\${$var:-false}"
+        # shellcheck disable=SC2154
         [ "$val" = "true" ] && HAS_TOOLS=true && break
     done
 
@@ -508,7 +511,7 @@ if [ -f "$TOOL_CONF" ]; then
                 [ -z "$dep" ] && continue
                 local dep_file
                 dep_file=$(get_deb_filename "$dep")
-                [ -n "$dep_file" ] && install_deb "$dep_file" 2>/dev/null || true
+                if [ -n "$dep_file" ]; then install_deb "$dep_file" 2>/dev/null || true; fi
             done <<< "$deps"
             local filename
             filename=$(get_deb_filename "$pkg")

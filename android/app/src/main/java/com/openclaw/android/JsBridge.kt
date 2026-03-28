@@ -9,7 +9,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.JavascriptInterface
 import com.google.gson.Gson
-import android.util.Log
+
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
  * All methods callable from JavaScript as window.OpenClaw.<method>().
  * All return values are JSON strings. Async operations use EventBridge (§2.8).
  */
+@Suppress("TooManyFunctions") // WebView bridge — one method per JS interface endpoint
 class JsBridge(
     private val activity: MainActivity,
     private val sessionManager: TerminalSessionManager,
@@ -27,7 +28,21 @@ class JsBridge(
     private val eventBridge: EventBridge
 ) {
     private val gson = Gson()
-    private val TAG = "JsBridge"
+
+    companion object {
+        private const val TAG = "JsBridge"
+        private const val SHELL_INIT_DELAY_MS = 500L
+        private const val COMMAND_TIMEOUT_MS = 5_000L
+        private const val PLATFORM_LIST_TIMEOUT_MS = 10_000L
+        private const val API_TIMEOUT_MS = 5000
+        private const val PROGRESS_START = 0f
+        private const val PROGRESS_HALF = 0.5f
+        private const val PROGRESS_DONE = 1f
+        private const val PROGRESS_DOWNLOAD = 0.2f
+        private const val PROGRESS_EXTRACT = 0.6f
+        private const val PROGRESS_APPLY = 0.9f
+        private const val PROGRESS_BOOTSTRAP_START = 0.1f
+    }
 
     /**
      * Launch a coroutine on Dispatchers.IO with error handling.
@@ -40,10 +55,10 @@ class JsBridge(
         block: suspend CoroutineScope.() -> Unit
     ) {
         val handler = CoroutineExceptionHandler { _, throwable ->
-            Log.e(TAG, "Coroutine error [$errorEventType]: ${throwable.message}", throwable)
+            AppLogger.e(TAG, "Coroutine error [$errorEventType]: ${throwable.message}", throwable)
             eventBridge.emit(errorEventType, errorContext + mapOf(
                 "error" to (throwable.message ?: "Unknown error"),
-                "progress" to 0f,
+                "progress" to PROGRESS_START,
                 "message" to "Error: ${throwable.message}"
             ))
         }
@@ -65,7 +80,7 @@ class JsBridge(
                 // that runs silently drops the data (mShellPid is still 0).
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     session.write("bash $script\n")
-                }, 500)
+                }, SHELL_INIT_DELAY_MS)
             }
         }
         activity.showTerminal()
@@ -112,7 +127,7 @@ class JsBridge(
         // Delay write until shell process initializes (same pattern as showTerminal post-setup)
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             session.write(command)
-        }, 500)
+        }, SHELL_INIT_DELAY_MS)
     }
 
     // ═══════════════════════════════════════════
@@ -138,7 +153,7 @@ class JsBridge(
     fun startSetup() {
         launchWithErrorHandling(
             errorEventType = "setup_progress",
-            errorContext = mapOf("progress" to 0f)
+            errorContext = mapOf("progress" to PROGRESS_START)
         ) {
             bootstrapManager.startSetup { progress, message ->
                 eventBridge.emit(
@@ -182,7 +197,7 @@ class JsBridge(
         val env = EnvironmentBuilder.build(activity)
         val result = CommandRunner.runSync(
             "npm list -g --depth=0 --json 2>/dev/null",
-            env, bootstrapManager.prefixDir, timeoutMs = 10_000
+            env, bootstrapManager.prefixDir, timeoutMs = PLATFORM_LIST_TIMEOUT_MS
         )
         return result.stdout.ifBlank { "[]" }
     }
@@ -194,17 +209,17 @@ class JsBridge(
             errorContext = mapOf("target" to id)
         ) {
             eventBridge.emit("install_progress",
-                mapOf("target" to id, "progress" to 0f, "message" to "Installing $id..."))
+                mapOf("target" to id, "progress" to PROGRESS_START, "message" to "Installing $id..."))
             val env = EnvironmentBuilder.build(activity)
             CommandRunner.runStreaming(
                 "npm install -g $id@latest --ignore-scripts",
                 env, bootstrapManager.homeDir
             ) { output ->
                 eventBridge.emit("install_progress",
-                    mapOf("target" to id, "progress" to 0.5f, "message" to output))
+                    mapOf("target" to id, "progress" to PROGRESS_HALF, "message" to output))
             }
             eventBridge.emit("install_progress",
-                mapOf("target" to id, "progress" to 1f, "message" to "$id installed"))
+                mapOf("target" to id, "progress" to PROGRESS_DONE, "message" to "$id installed"))
         }
     }
 
@@ -289,7 +304,9 @@ class JsBridge(
         ) {
             val env = EnvironmentBuilder.build(activity)
             val prefix = bootstrapManager.prefixDir.absolutePath
-            val aptGet = "DEBIAN_FRONTEND=noninteractive $prefix/bin/apt-get -y -o Acquire::AllowInsecureRepositories=true -o APT::Get::AllowUnauthenticated=true"
+            val aptGet = "DEBIAN_FRONTEND=noninteractive $prefix/bin/apt-get" +
+                " -y -o Acquire::AllowInsecureRepositories=true" +
+                " -o APT::Get::AllowUnauthenticated=true"
             val cmd = when (id) {
                 // Termux packages (apt-get)
                 "tmux", "ttyd", "dufs", "openssh-server", "android-tools" ->
@@ -309,17 +326,18 @@ class JsBridge(
                     "npm install -g @openai/codex"
                 // OpenCode (Bun-based) — requires proot + ld.so concatenation
                 "opencode" ->
-                    "curl -fsSL https://raw.githubusercontent.com/AidanPark/openclaw-android/main/scripts/install-opencode.sh | bash"
+                    "curl -fsSL https://raw.githubusercontent.com/" +
+                    "AidanPark/openclaw-android/main/scripts/install-opencode.sh | bash"
                 else -> "echo 'Unknown tool: $id'"
             }
             eventBridge.emit("install_progress",
-                mapOf("target" to id, "progress" to 0f, "message" to "Installing $id..."))
+                mapOf("target" to id, "progress" to PROGRESS_START, "message" to "Installing $id..."))
             CommandRunner.runStreaming(cmd, env, bootstrapManager.homeDir) { output ->
                 eventBridge.emit("install_progress",
-                    mapOf("target" to id, "progress" to 0.5f, "message" to output))
+                    mapOf("target" to id, "progress" to PROGRESS_HALF, "message" to output))
             }
             eventBridge.emit("install_progress",
-                mapOf("target" to id, "progress" to 1f, "message" to "$id installed"))
+                mapOf("target" to id, "progress" to PROGRESS_DONE, "message" to "$id installed"))
         }
     }
 
@@ -331,8 +349,10 @@ class JsBridge(
         ) {
             val env = EnvironmentBuilder.build(activity)
             val cmd = when (id) {
-                "tmux", "ttyd", "dufs", "openssh-server", "android-tools", "chromium" ->
-                    "${bootstrapManager.prefixDir.absolutePath}/bin/apt-get remove -y ${if (id == "openssh-server") "openssh" else id}"
+                "tmux", "ttyd", "dufs", "openssh-server", "android-tools", "chromium" -> {
+                    val pkg = if (id == "openssh-server") "openssh" else id
+                    "${bootstrapManager.prefixDir.absolutePath}/bin/apt-get remove -y $pkg"
+                }
                 "code-server" ->
                     "npm uninstall -g code-server"
                 "claude-code" ->
@@ -342,7 +362,10 @@ class JsBridge(
                 "codex-cli" ->
                     "npm uninstall -g @openai/codex"
                 "opencode" ->
-                    "rm -f \$PREFIX/bin/opencode \$HOME/.openclaw-android/bin/ld.so.opencode \$PREFIX/tmp/ld.so.opencode && rm -rf \$HOME/.config/opencode"
+                    "rm -f \$PREFIX/bin/opencode" +
+                    " \$HOME/.openclaw-android/bin/ld.so.opencode" +
+                    " \$PREFIX/tmp/ld.so.opencode" +
+                    " && rm -rf \$HOME/.config/opencode"
                 else -> "echo 'Unknown tool: $id'"
             }
             CommandRunner.runSync(cmd, env, bootstrapManager.homeDir)
@@ -355,12 +378,21 @@ class JsBridge(
         val env = EnvironmentBuilder.build(activity)
         val exists = when (id) {
             "openssh-server" -> java.io.File("$prefix/bin/sshd").exists()
-            "tmux", "ttyd", "dufs", "android-tools" -> java.io.File("$prefix/bin/${if (id == "android-tools") "adb" else id}").exists()
-            "chromium" -> java.io.File("$prefix/bin/chromium-browser").exists() || java.io.File("$prefix/bin/chromium").exists()
+            "tmux", "ttyd", "dufs", "android-tools" -> {
+                val bin = if (id == "android-tools") "adb" else id
+                java.io.File("$prefix/bin/$bin").exists()
+            }
+            "chromium" -> {
+                java.io.File("$prefix/bin/chromium-browser").exists() ||
+                    java.io.File("$prefix/bin/chromium").exists()
+            }
             "code-server" -> java.io.File("$prefix/bin/code-server").exists()
             else -> {
                 // npm global packages: check via command -v
-                val result = CommandRunner.runSync("command -v $id 2>/dev/null", env, bootstrapManager.prefixDir, timeoutMs = 5_000)
+                val result = CommandRunner.runSync(
+                    "command -v $id 2>/dev/null",
+                    env, bootstrapManager.prefixDir, timeoutMs = COMMAND_TIMEOUT_MS
+                )
                 result.stdout.trim().isNotEmpty()
             }
         }
@@ -432,8 +464,8 @@ class JsBridge(
         return try {
             val url = java.net.URL("https://api.github.com/repos/AidanPark/openclaw-android/releases/latest")
             val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
+            conn.connectTimeout = API_TIMEOUT_MS
+            conn.readTimeout = API_TIMEOUT_MS
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             val body = conn.inputStream.bufferedReader().readText()
             conn.disconnect()
@@ -460,84 +492,83 @@ class JsBridge(
             errorEventType = "install_progress",
             errorContext = mapOf("target" to component)
         ) {
-            eventBridge.emit("install_progress",
-                mapOf("target" to component, "progress" to 0f, "message" to "Updating $component..."))
-
+            emitProgress(component, PROGRESS_START, "Updating $component...")
             when (component) {
-                "www" -> {
-                    // Download www.zip → staging → atomic replace → reload
-                    try {
-                        val url = UrlResolver(activity).getWwwUrl()
-                        val stagingWww = java.io.File(activity.cacheDir, "www-staging")
-                        stagingWww.deleteRecursively()
-                        stagingWww.mkdirs()
+                "www" -> updateWww()
+                "bootstrap" -> updateBootstrap()
+                "scripts" -> emitProgress("scripts", PROGRESS_HALF, "Scripts are updated with bootstrap")
+            }
+            emitProgress(component, PROGRESS_DONE, "$component updated")
+        }
+    }
 
-                        // Download www.zip
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "www", "progress" to 0.2f, "message" to "Downloading..."))
-                        val zipFile = java.io.File(activity.cacheDir, "www.zip")
-                        java.net.URL(url).openStream().use { input ->
-                            zipFile.outputStream().use { output -> input.copyTo(output) }
-                        }
+    private fun emitProgress(target: String, progress: Float, message: String) {
+        eventBridge.emit("install_progress", mapOf(
+            "target" to target, "progress" to progress, "message" to message
+        ))
+    }
 
-                        // Extract to staging
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "www", "progress" to 0.6f, "message" to "Extracting..."))
-                        java.util.zip.ZipInputStream(zipFile.inputStream()).use { zis ->
-                            var entry = zis.nextEntry
-                            while (entry != null) {
-                                val destFile = java.io.File(stagingWww, entry.name)
-                                if (entry.isDirectory) {
-                                    destFile.mkdirs()
-                                } else {
-                                    destFile.parentFile?.mkdirs()
-                                    destFile.outputStream().use { out -> zis.copyTo(out) }
-                                }
-                                entry = zis.nextEntry
-                            }
-                        }
-                        zipFile.delete()
+    private suspend fun updateWww() {
+        try {
+            val url = UrlResolver(activity).getWwwUrl()
+            val stagingWww = java.io.File(activity.cacheDir, "www-staging")
+            stagingWww.deleteRecursively()
+            stagingWww.mkdirs()
 
-                        // Atomic replace: delete old www, rename staging
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "www", "progress" to 0.9f, "message" to "Applying..."))
-                        val wwwDir = bootstrapManager.wwwDir
-                        wwwDir.deleteRecursively()
-                        wwwDir.parentFile?.mkdirs()
-                        stagingWww.renameTo(wwwDir)
-
-                        // Reload WebView
-                        activity.runOnUiThread { activity.reloadWebView() }
-                    } catch (e: Exception) {
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "www", "progress" to 0f,
-                                "message" to "Update failed: ${e.message}"))
-                    }
-                }
-                "bootstrap" -> {
-                    // Re-download and re-extract bootstrap
-                    try {
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "bootstrap", "progress" to 0.1f, "message" to "Downloading bootstrap..."))
-                        bootstrapManager.startSetup { progress, message ->
-                            eventBridge.emit("install_progress",
-                                mapOf("target" to "bootstrap", "progress" to progress, "message" to message))
-                        }
-                    } catch (e: Exception) {
-                        eventBridge.emit("install_progress",
-                            mapOf("target" to "bootstrap", "progress" to 0f,
-                                "message" to "Update failed: ${e.message}"))
-                    }
-                }
-                "scripts" -> {
-                    // Scripts update: re-download management scripts from config URL
-                    eventBridge.emit("install_progress",
-                        mapOf("target" to "scripts", "progress" to 0.5f, "message" to "Scripts are updated with bootstrap"))
-                }
+            emitProgress("www", PROGRESS_DOWNLOAD, "Downloading...")
+            val zipFile = java.io.File(activity.cacheDir, "www.zip")
+            java.net.URL(url).openStream().use { input ->
+                zipFile.outputStream().use { output -> input.copyTo(output) }
             }
 
-            eventBridge.emit("install_progress",
-                mapOf("target" to component, "progress" to 1f, "message" to "$component updated"))
+            emitProgress("www", PROGRESS_EXTRACT, "Extracting...")
+            extractZipToDir(zipFile, stagingWww)
+            zipFile.delete()
+
+            emitProgress("www", PROGRESS_APPLY, "Applying...")
+            val wwwDir = bootstrapManager.wwwDir
+            wwwDir.deleteRecursively()
+            wwwDir.parentFile?.mkdirs()
+            stagingWww.renameTo(wwwDir)
+
+            activity.runOnUiThread { activity.reloadWebView() }
+        } catch (e: Exception) {
+            emitProgress("www", PROGRESS_START, "Update failed: ${e.message}")
+        }
+    }
+
+    private suspend fun updateBootstrap() {
+        try {
+            emitProgress("bootstrap", PROGRESS_BOOTSTRAP_START, "Downloading bootstrap...")
+            bootstrapManager.startSetup { progress, message ->
+                emitProgress("bootstrap", progress, message)
+            }
+        } catch (e: Exception) {
+            emitProgress("bootstrap", PROGRESS_START, "Update failed: ${e.message}")
+        }
+    }
+
+    private fun extractZipToDir(zipFile: java.io.File, targetDir: java.io.File) {
+        java.util.zip.ZipInputStream(zipFile.inputStream()).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                extractZipEntry(zis, entry, targetDir)
+                entry = zis.nextEntry
+            }
+        }
+    }
+
+    private fun extractZipEntry(
+        zis: java.util.zip.ZipInputStream,
+        entry: java.util.zip.ZipEntry,
+        targetDir: java.io.File
+    ) {
+        val destFile = java.io.File(targetDir, entry.name)
+        if (entry.isDirectory) {
+            destFile.mkdirs()
+        } else {
+            destFile.parentFile?.mkdirs()
+            destFile.outputStream().use { out -> zis.copyTo(out) }
         }
     }
 

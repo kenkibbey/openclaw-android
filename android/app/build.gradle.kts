@@ -46,10 +46,13 @@ android {
             val props = project.rootProject.file("local.properties")
             if (props.exists()) {
                 val localProps = Properties().apply { props.inputStream().use { load(it) } }
-                storeFile = file(localProps.getProperty("RELEASE_STORE_FILE", ""))
-                storePassword = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
-                keyAlias = localProps.getProperty("RELEASE_KEY_ALIAS", "")
-                keyPassword = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+                val storePath = localProps.getProperty("RELEASE_STORE_FILE", "")
+                if (storePath.isNotEmpty()) {
+                    storeFile = file(storePath)
+                    storePassword = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
+                    keyAlias = localProps.getProperty("RELEASE_KEY_ALIAS", "")
+                    keyPassword = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+                }
             }
         }
     }
@@ -77,6 +80,12 @@ android {
 
     kotlinOptions { jvmTarget = "17" }
 
+    @Suppress("UnstableApiUsage")
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         viewBinding = true
         buildConfig = true
@@ -99,6 +108,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.gson)
     // WebView + @JavascriptInterface — Android SDK built-in, no extra dependency
+
+    // Test dependencies
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.platform.launcher)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 

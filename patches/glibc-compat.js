@@ -44,6 +44,26 @@ try {
 } catch {}
 
 
+// ─── LD_PRELOAD restore for child processes ─────────────────
+// The node wrapper unsets LD_PRELOAD to prevent bionic libtermux-exec.so
+// from loading into the glibc node.real process. However, bionic child
+// processes (/bin/sh, etc.) need libtermux-exec for path translation
+// (e.g., /usr/bin/env → $PREFIX/bin/env in shebang resolution).
+// Restore LD_PRELOAD after node.real has loaded — this only affects
+// child processes, not the already-running node.real.
+
+if (process.env._OA_ORIG_LD_PRELOAD) {
+  // New wrapper (v1.0.12+): saved original LD_PRELOAD before unsetting
+  process.env.LD_PRELOAD = process.env._OA_ORIG_LD_PRELOAD;
+  delete process.env._OA_ORIG_LD_PRELOAD;
+} else if (!process.env.LD_PRELOAD) {
+  // Old wrapper (pre-v1.0.12): unset LD_PRELOAD without saving — detect directly
+  const _termuxExec = (process.env.PREFIX || '/data/data/com.termux/files/usr')
+    + '/lib/libtermux-exec-ld-preload.so';
+  try { if (fs.existsSync(_termuxExec)) process.env.LD_PRELOAD = _termuxExec; } catch {}
+}
+
+
 // ─── os.cpus() fallback ─────────────────────────────────────
 // Android 8+ (API 26+) blocks /proc/stat via SELinux + hidepid=2.
 // libuv reads /proc/stat for CPU info → returns empty array.

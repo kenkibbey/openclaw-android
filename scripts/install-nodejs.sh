@@ -134,6 +134,7 @@ fi
 # os.networkInterfaces() throws EACCES) that affect native module builds and runtime.
 printf '#!%s/bin/bash\n' "$PREFIX" > "$NODE_DIR/bin/node"
 cat >> "$NODE_DIR/bin/node" << 'WRAPPER'
+[ -n "$LD_PRELOAD" ] && export _OA_ORIG_LD_PRELOAD="$LD_PRELOAD"
 unset LD_PRELOAD
 _OA_COMPAT="$HOME/.openclaw-android/patches/glibc-compat.js"
 if [ -f "$_OA_COMPAT" ]; then

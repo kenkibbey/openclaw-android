@@ -54,7 +54,7 @@
 | 성능 | 느림 (proot 레이어) | 네이티브 속도 |
 | 설정 과정 | 디스트로 설치, Linux 설정, Node.js 설치, 경로 수정... | 명령어 하나 실행 |
 
-## <img src="docs/images/claw-icon.svg" width="28"> Claw 앱
+## <img src="docs/images/claw-icon.svg" width="28" alt="Claw icon"> Claw 앱
 
 독립 실행형 Android 앱도 제공됩니다. 터미널 에뮬레이터와 WebView 기반 UI를 하나의 APK에 담았으며, Termux 없이 사용할 수 있습니다.
 
@@ -63,7 +63,6 @@
 - Termux와 독립 실행 — 앱 설치가 기존 Termux + `oa` 환경에 영향을 주지 않음
 
 [Releases](https://github.com/AidanPark/openclaw-android/releases) 페이지에서 APK를 다운로드하세요.
-
 
 ## 요구사항
 
@@ -112,7 +111,6 @@ pkg update -y && pkg install -y curl
 ```
 
 > 처음 실행하면 저장소 미러를 선택하라는 메시지가 나올 수 있습니다. 아무거나 선택해도 되지만, 지역적으로 가까운 미러를 고르면 더 빠릅니다.
-
 
 ### 4단계: OpenClaw 설치
 
@@ -192,7 +190,6 @@ SSH 접속 및 대시보드 터널 설정은 [Termux SSH 접속 가이드](docs/
 | `oa --version` | 버전 표시 |
 | `oa --help` | 사용 가능한 옵션 표시 |
 
-
 ## 업데이트
 
 ```bash
@@ -214,7 +211,6 @@ oa --update && source ~/.bashrc
 > curl -sL myopenclawhub.com/update | bash && source ~/.bashrc
 > ```
 
-
 ## 백업 및 복구
 
 OpenClaw의 내장 백업 명령어(`openclaw backup create`)는 Android의 앱 전용 저장소에서 하드링크(`fs.link()`) 생성이 제한되어 있어 실패하는 경우가 많습니다. `oa --backup` 명령어는 `tar`를 직접 사용하여 이 문제를 해결하면서도, OpenClaw 백업 규격과 완벽하게 호환되는 아카이브를 생성합니다.
@@ -228,6 +224,7 @@ oa --backup
 oa --restore
 ```
 이 명령어를 실행하면 기본 백업 폴더에 있는 사용 가능한 백업 목록이 표시됩니다. 복구하려는 백업의 번호를 선택하면 됩니다. 도구가 백업 매니페스트에서 플랫폼을 자동으로 감지하여 `~/.openclaw/` 경로로 복구를 진행합니다. 기존 데이터를 덮어쓰게 되므로 실행 전 확인 절차가 진행됩니다.
+
 ## 문제 해결
 
 자세한 트러블슈팅 가이드는 [문제 해결 문서](docs/troubleshooting.ko.md)를 참고하세요.

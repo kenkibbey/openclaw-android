@@ -9,8 +9,9 @@ import java.io.File
  */
 object EnvironmentBuilder {
 
-    fun build(context: Context): Map<String, String> {
-        val filesDir = context.filesDir
+    fun build(context: Context): Map<String, String> = build(context.filesDir)
+
+    fun build(filesDir: File): Map<String, String> {
         val prefix = File(filesDir, "usr")
         val home = File(filesDir, "home")
         val tmp = File(filesDir, "tmp")
@@ -20,7 +21,10 @@ object EnvironmentBuilder {
             put("PREFIX", prefix.absolutePath)
             put("HOME", home.absolutePath)
             put("TMPDIR", tmp.absolutePath)
-            put("PATH", "${home.absolutePath}/.openclaw-android/node/bin:${home.absolutePath}/.local/bin:${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets")
+            val nodeBin = "${home.absolutePath}/.openclaw-android/node/bin"
+            val localBin = "${home.absolutePath}/.local/bin"
+            val prefixBin = "${prefix.absolutePath}/bin"
+            put("PATH", "$nodeBin:$localBin:$prefixBin:$prefixBin/applets")
             put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib")
 
             // libtermux-exec path conversion (§2.2.4)

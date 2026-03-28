@@ -93,7 +93,7 @@ pkg install -y android-tools
 1. **무선 디버깅** 설정에서 **페어링 코드로 기기 페어링** (Pair device with pairing code) 탭
 2. **Wi-Fi 페어링 코드**와 **IP 주소 및 포트**가 표시된 다이얼로그가 나타남
 
-<img src="images/signal9/05-pairing-code-dialog.png" width="300" alt="페어링 코드 다이얼로그">
+   <img src="images/signal9/05-pairing-code-dialog.png" width="300" alt="페어링 코드 다이얼로그">
 
 3. Termux에서 화면에 표시된 포트와 코드를 사용하여 페어링 명령을 실행합니다:
 

@@ -64,7 +64,13 @@ npm run build
 git config core.hooksPath .githooks
 ```
 
-This enables the pre-commit hook that runs ktlint and detekt before every commit.
+This enables the pre-commit hook that automatically runs before every commit:
+
+- **Kotlin**: ktlint (formatting) + detekt (static analysis)
+- **Shell scripts**: shellcheck (requires `shellcheck` installed)
+- **Markdown**: markdownlint (requires `markdownlint-cli2` installed)
+- **WebView**: ESLint on TypeScript/React files in `android/www/`
+- **Sync check**: Verifies `post-setup.sh` root and app assets are identical
 
 ## How to Contribute
 

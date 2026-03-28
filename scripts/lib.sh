@@ -77,6 +77,7 @@ load_platform_config() {
         echo -e "${RED}[FAIL]${NC} Platform config not found: $config_path"
         return 1
     fi
+    # shellcheck source=/dev/null
     source "$config_path"
     return 0
 }

@@ -21,7 +21,7 @@ Port 18789 is already in use.
 
 ### 해결 방법
 
-**1단계: 남아있는 프로세스 확인 및 종료**
+#### 1단계: 남아있는 프로세스 확인 및 종료
 
 ```bash
 ps aux | grep -E "node|openclaw" | grep -v grep
@@ -33,13 +33,13 @@ ps aux | grep -E "node|openclaw" | grep -v grep
 kill -9 <PID>
 ```
 
-**2단계: 잠금 파일 삭제**
+#### 2단계: 잠금 파일 삭제
 
 ```bash
 rm -rf $PREFIX/tmp/openclaw-*
 ```
 
-**3단계: 게이트웨이 재시작**
+#### 3단계: 게이트웨이 재시작
 
 ```bash
 openclaw gateway

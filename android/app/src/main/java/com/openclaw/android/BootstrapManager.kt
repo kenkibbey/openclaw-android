@@ -1,7 +1,7 @@
 package com.openclaw.android
 
 import android.content.Context
-import android.util.Log
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -18,6 +18,14 @@ class BootstrapManager(private val context: Context) {
 
     companion object {
         private const val TAG = "BootstrapManager"
+        private const val PROGRESS_PREPARING = 0.05f
+        private const val PROGRESS_DOWNLOADING = 0.10f
+        private const val PROGRESS_EXTRACTING = 0.30f
+        private const val PROGRESS_CONFIGURING = 0.60f
+        private const val ELF_MAGIC_SIZE = 4
+        private val ELF_SIGNATURE = byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte())
+        private const val SYMLINK_SEPARATOR = "←"
+        private const val SYMLINK_PARTS_COUNT = 2
     }
 
     val prefixDir = File(context.filesDir, "usr")
@@ -56,25 +64,25 @@ class BootstrapManager(private val context: Context) {
     suspend fun startSetup(onProgress: (Float, String) -> Unit) = withContext(Dispatchers.IO) {
         // Clean up any incomplete previous attempt before starting
         if (stagingDir.exists()) {
-            Log.i(TAG, "Removing incomplete staging dir from previous attempt")
+            AppLogger.i(TAG, "Removing incomplete staging dir from previous attempt")
             stagingDir.deleteRecursively()
         }
         if (isInstalled()) {
             // Bootstrap exists but setup is incomplete — wipe and reinstall
-            Log.i(TAG, "Incomplete bootstrap detected, reinstalling...")
+            AppLogger.i(TAG, "Incomplete bootstrap detected, reinstalling...")
             prefixDir.deleteRecursively()
         }
 
         // Step 1: Download or extract bootstrap
-        onProgress(0.05f, "Preparing bootstrap...")
+        onProgress(PROGRESS_PREPARING, "Preparing bootstrap...")
         val zipStream = getBootstrapStream(onProgress)
 
         // Step 2: Extract bootstrap
-        onProgress(0.30f, "Extracting bootstrap...")
-        extractBootstrap(zipStream, onProgress)
+        onProgress(PROGRESS_EXTRACTING, "Extracting bootstrap...")
+        extractBootstrap(zipStream)
 
         // Step 3: Fix paths and configure
-        onProgress(0.60f, "Configuring environment...")
+        onProgress(PROGRESS_CONFIGURING, "Configuring environment...")
         fixTermuxPaths(stagingDir)
         configureApt(stagingDir)
 
@@ -100,60 +108,64 @@ class BootstrapManager(private val context: Context) {
             // Phase 1: Download from network
         }
 
-        onProgress(0.10f, "Downloading bootstrap...")
+        onProgress(PROGRESS_DOWNLOADING, "Downloading bootstrap...")
         val url = UrlResolver(context).getBootstrapUrl()
         return URL(url).openStream()
     }
 
     // --- Extraction ---
 
-    private fun extractBootstrap(
-        inputStream: InputStream,
-        onProgress: (Float, String) -> Unit
-    ) {
+    private fun extractBootstrap(inputStream: InputStream) {
         stagingDir.deleteRecursively()
         stagingDir.mkdirs()
 
         ZipInputStream(inputStream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
-                if (entry.name == "SYMLINKS.txt") {
-                    processSymlinks(zip, stagingDir)
-                } else if (!entry.isDirectory) {
-                    val file = File(stagingDir, entry.name)
-                    file.parentFile?.mkdirs()
-                    file.outputStream().use { out -> zip.copyTo(out) }
-                    // Mark ELF binaries and shared libraries as executable.
-                    // Check common paths plus ELF magic bytes for anything we miss.
-                    val name = entry.name
-                    val knownExecutable = name.startsWith("bin/") ||
-                        name.startsWith("libexec/") ||
-                        name.startsWith("lib/apt/") ||
-                        name.startsWith("lib/bash/") ||
-                        name.endsWith(".so") ||
-                        name.contains(".so.")
-                    if (knownExecutable) {
-                        file.setExecutable(true)
-                    } else if (file.length() > 4) {
-                        // Detect ELF binaries by magic bytes (\x7fELF)
-                        try {
-                            file.inputStream().use { fis ->
-                                val magic = ByteArray(4)
-                                if (fis.read(magic) == 4 &&
-                                    magic[0] == 0x7f.toByte() &&
-                                    magic[1] == 'E'.code.toByte() &&
-                                    magic[2] == 'L'.code.toByte() &&
-                                    magic[3] == 'F'.code.toByte()
-                                ) {
-                                    file.setExecutable(true)
-                                }
-                            }
-                        } catch (_: Exception) { }
-                }
-                }
+                processZipEntry(zip, entry)
                 zip.closeEntry()
                 entry = zip.nextEntry
             }
+        }
+    }
+
+    private fun processZipEntry(
+        zip: ZipInputStream,
+        entry: java.util.zip.ZipEntry
+    ) {
+        if (entry.name == "SYMLINKS.txt") {
+            processSymlinks(zip, stagingDir)
+        } else if (!entry.isDirectory) {
+            val file = File(stagingDir, entry.name)
+            file.parentFile?.mkdirs()
+            file.outputStream().use { out -> zip.copyTo(out) }
+            markExecutableIfNeeded(file, entry.name)
+        }
+    }
+
+    private fun markExecutableIfNeeded(file: File, name: String) {
+        val knownExecutable = name.startsWith("bin/") ||
+            name.startsWith("libexec/") ||
+            name.startsWith("lib/apt/") ||
+            name.startsWith("lib/bash/") ||
+            name.endsWith(".so") ||
+            name.contains(".so.")
+        if (knownExecutable) {
+            file.setExecutable(true)
+        } else if (file.length() > ELF_MAGIC_SIZE && isElfBinary(file)) {
+            file.setExecutable(true)
+        }
+    }
+
+    private fun isElfBinary(file: File): Boolean {
+        return try {
+            file.inputStream().use { fis ->
+                val magic = ByteArray(ELF_MAGIC_SIZE)
+                fis.read(magic) == ELF_MAGIC_SIZE &&
+                    magic.contentEquals(ELF_SIGNATURE)
+            }
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -164,23 +176,23 @@ class BootstrapManager(private val context: Context) {
     private fun processSymlinks(zip: ZipInputStream, targetDir: File) {
         val content = zip.bufferedReader().readText()
         val ourPackage = context.packageName
-        for (line in content.lines()) {
-            if (line.isBlank()) continue
-            val parts = line.split("←")
-            if (parts.size != 2) continue
-
-            var symlinkTarget = parts[0].trim()
-                .replace("com.termux", ourPackage)
-            val symlinkPath = parts[1].trim()
-
-            val linkFile = File(targetDir, symlinkPath)
-            linkFile.parentFile?.mkdirs()
-            try {
-                Os.symlink(symlinkTarget, linkFile.absolutePath)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to create symlink: $symlinkPath -> $symlinkTarget", e)
+        content.lines()
+            .filter { it.isNotBlank() }
+            .mapNotNull { line ->
+                val parts = line.split(SYMLINK_SEPARATOR)
+                if (parts.size == SYMLINK_PARTS_COUNT) parts else null
             }
-        }
+            .forEach { parts ->
+                val symlinkTarget = parts[0].trim().replace("com.termux", ourPackage)
+                val symlinkPath = parts[1].trim()
+                val linkFile = File(targetDir, symlinkPath)
+                linkFile.parentFile?.mkdirs()
+                try {
+                    Os.symlink(symlinkTarget, linkFile.absolutePath)
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Failed to create symlink: $symlinkPath -> $symlinkTarget", e)
+                }
+            }
     }
 
     // --- Path fixing (§2.2.2) ---
@@ -220,7 +232,7 @@ class BootstrapManager(private val context: Context) {
                 file.writeText(content.replace(oldText, newText))
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to fix paths in ${file.name}", e)
+            AppLogger.w(TAG, "Failed to fix paths in ${file.name}", e)
         }
     }
 
@@ -286,7 +298,7 @@ class BootstrapManager(private val context: Context) {
         // It intercepts execve() to rewrite /data/data/com.termux paths (§2.2.4).
         // However, it does NOT intercept open()/opendir() calls, so binaries with
         // hardcoded config paths (dpkg, bash) need wrapper scripts.
-        Log.i(TAG, "Bootstrap installed at ${prefixDir.absolutePath}")
+        AppLogger.i(TAG, "Bootstrap installed at ${prefixDir.absolutePath}")
 
         // Create dpkg wrapper that handles confdir permission errors.
         // The bootstrap dpkg has /data/data/com.termux/.../etc/dpkg/ hardcoded.
@@ -323,41 +335,42 @@ exit ${d}_rc
         ocaDir.mkdirs()
         File(ocaDir, "patches").mkdirs()
 
-        // post-setup.sh: try downloading latest from GitHub, fall back to bundled
         val postSetup = File(ocaDir, "post-setup.sh")
-        val postSetupUrl = "https://raw.githubusercontent.com/AidanPark/openclaw-android/main/post-setup.sh"
-        var downloaded = false
-        try {
-            java.net.URL(postSetupUrl).openStream().use { input ->
-                postSetup.outputStream().use { output -> input.copyTo(output) }
-            }
-            postSetup.setExecutable(true)
-            Log.i(TAG, "post-setup.sh downloaded from GitHub")
-            downloaded = true
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to download post-setup.sh, using bundled fallback", e)
-        }
-        if (!downloaded) {
-            try {
-                context.assets.open("post-setup.sh").use { input ->
-                    postSetup.outputStream().use { output -> input.copyTo(output) }
-                }
-                postSetup.setExecutable(true)
-                Log.i(TAG, "post-setup.sh copied from bundled assets")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to copy bundled post-setup.sh", e)
-            }
-        }
+        copyPostSetupScript(postSetup)
+        copyBundledAsset("glibc-compat.js", File(ocaDir, "patches/glibc-compat.js"))
+    }
 
-        // glibc-compat.js: always use bundled asset
+    private fun copyPostSetupScript(target: File) {
+        val url = "https://raw.githubusercontent.com/AidanPark/openclaw-android/main/post-setup.sh"
         try {
-            val target = File(ocaDir, "patches/glibc-compat.js")
-            context.assets.open("glibc-compat.js").use { input ->
+            java.net.URL(url).openStream().use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             }
-            Log.i(TAG, "glibc-compat.js copied from bundled assets")
+            target.setExecutable(true)
+            AppLogger.i(TAG, "post-setup.sh downloaded from GitHub")
+            return
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to copy glibc-compat.js", e)
+            AppLogger.w(TAG, "Failed to download post-setup.sh, using bundled fallback", e)
+        }
+        try {
+            context.assets.open("post-setup.sh").use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+            target.setExecutable(true)
+            AppLogger.i(TAG, "post-setup.sh copied from bundled assets")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Failed to copy bundled post-setup.sh", e)
+        }
+    }
+
+    private fun copyBundledAsset(assetName: String, target: File) {
+        try {
+            context.assets.open(assetName).use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+            AppLogger.i(TAG, "$assetName copied from bundled assets")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Failed to copy $assetName", e)
         }
     }
 
@@ -373,7 +386,7 @@ exit ${d}_rc
         copyAssetScripts()
         syncWwwFromAssets()
         installOaCli()
-        Log.i(TAG, "Script update applied")
+        AppLogger.i(TAG, "Script update applied")
     }
 
     /**
@@ -384,9 +397,9 @@ exit ${d}_rc
         try {
             wwwDir.mkdirs()
             copyAssetDir("www", wwwDir)
-            Log.i(TAG, "www synced from assets to ${wwwDir.absolutePath}")
+            AppLogger.i(TAG, "www synced from assets to ${wwwDir.absolutePath}")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to sync www from assets", e)
+            AppLogger.w(TAG, "Failed to sync www from assets", e)
         }
     }
 
@@ -394,15 +407,17 @@ exit ${d}_rc
         val entries = context.assets.list(assetPath) ?: return
         targetDir.mkdirs()
         for (entry in entries) {
-            val childAsset = "$assetPath/$entry"
-            val childFile = File(targetDir, entry)
-            val children = context.assets.list(childAsset)
-            if (!children.isNullOrEmpty()) {
-                copyAssetDir(childAsset, childFile)
-            } else {
-                context.assets.open(childAsset).use { input ->
-                    childFile.outputStream().use { output -> input.copyTo(output) }
-                }
+            copyAssetEntry("$assetPath/$entry", File(targetDir, entry))
+        }
+    }
+
+    private fun copyAssetEntry(assetPath: String, targetFile: File) {
+        val children = context.assets.list(assetPath)
+        if (!children.isNullOrEmpty()) {
+            copyAssetDir(assetPath, targetFile)
+        } else {
+            context.assets.open(assetPath).use { input ->
+                targetFile.outputStream().use { output -> input.copyTo(output) }
             }
         }
     }
@@ -415,9 +430,9 @@ exit ${d}_rc
                 oaBin.outputStream().use { output -> input.copyTo(output) }
             }
             oaBin.setExecutable(true)
-            Log.i(TAG, "oa CLI installed at ${oaBin.absolutePath}")
+            AppLogger.i(TAG, "oa CLI installed at ${oaBin.absolutePath}")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to install oa CLI", e)
+            AppLogger.w(TAG, "Failed to install oa CLI", e)
         }
     }
 }
